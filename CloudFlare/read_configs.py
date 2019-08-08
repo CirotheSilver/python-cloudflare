@@ -14,6 +14,7 @@ def read_configs():
     email = os.getenv('CF_API_EMAIL')
     token = os.getenv('CF_API_KEY')
     certtoken = os.getenv('CF_API_CERTKEY')
+    apitoken = os.getenv('CF_API_TOKEN')
     extras = os.getenv('CF_API_EXTRAS')
 
     # grab values from config files
@@ -42,6 +43,12 @@ def read_configs():
         except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
             certtoken = None
 
+    if apitoken is None:
+        try:
+            apitoken = re.sub(r"\s+", '', config.get('CloudFlare', 'apitoken'))
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+            apitoken = None
+
     if extras is None:
         try:
             extras = re.sub(r"\s+", ' ', config.get('CloudFlare', 'extras'))
@@ -51,5 +58,5 @@ def read_configs():
         if extras:
             extras = extras.split(' ')
 
-    return [email, token, certtoken, extras]
+    return [email, token, certtoken, apitoken, extras]
 

@@ -19,12 +19,13 @@ class CloudFlare(object):
     class _v4base(object):
         """ Cloudflare v4 API"""
 
-        def __init__(self, email, token, certtoken, base_url, debug, raw, use_sessions):
+        def __init__(self, email, token, certtoken, apitoken, base_url, debug, raw, use_sessions):
             """ Cloudflare v4 API"""
 
             self.email = email
             self.token = token
             self.certtoken = certtoken
+            self.apitoken = apitoken
             self.base_url = base_url
             self.raw = raw
             self.use_sessions = use_sessions
@@ -111,6 +112,30 @@ class CloudFlare(object):
                 'X-Auth-User-Service-Key': self.certtoken,
                 'Content-Type': 'application/json'
             }
+            return self._call(method, headers, parts,
+                              identifier1, identifier2, identifier3,
+                              params, data, files)
+
+        def call_with_apiauth(self, method, parts,
+                           identifier1=None, identifier2=None, identifier3=None,
+                           params=None, data=None, files=None):
+            """ Cloudflare v4 API"""
+
+            if self.apitoken is '':
+                raise CloudFlareAPIError(0, 'no apitoken defined')
+            headers = {
+                'User-Agent': self.user_agent,
+                'Authorization': "Bearer "+self.apitoken,
+                'Content-Type': 'application/json'
+            }
+            if type(data) == str:
+                # passing javascript vs JSON
+                headers['Content-Type'] = 'application/javascript'
+            if files:
+                # overwrite Content-Type as we are uploading data
+                headers['Content-Type'] = 'multipart/form-data'
+                # however something isn't right and this works ... look at again later!
+                del headers['Content-Type']
             return self._call(method, headers, parts,
                               identifier1, identifier2, identifier3,
                               params, data, files)
@@ -755,6 +780,61 @@ class CloudFlare(object):
                                                  identifier1, identifier2, identifier3,
                                                  params, data)
 
+    class _add_with_apiauth(object):
+        """ Cloudflare v4 API"""
+
+        def __init__(self, base, p1, p2=None, p3=None):
+            """ Cloudflare v4 API"""
+
+            self._base = base
+            self._parts = [p1, p2, p3]
+
+        def __call__(self, identifier1=None, identifier2=None, identifier3=None, params=None, data=None):
+            """ Cloudflare v4 API"""
+
+            # This is the same as a get()
+            return self.get(identifier1, identifier2, identifier3, params, data)
+
+        def __str__(self):
+            """ Cloudflare v4 API"""
+
+            return '[%s]' % ('/' + '/:id/'.join(filter(None, self._parts)))
+
+        def get(self, identifier1=None, identifier2=None, identifier3=None, params=None, data=None):
+            """ Cloudflare v4 API"""
+
+            return self._base.call_with_apiauth('GET', self._parts,
+                                                       identifier1, identifier2, identifier3,
+                                                       params, data)
+
+        def patch(self, identifier1=None, identifier2=None, identifier3=None, params=None, data=None):
+            """ Cloudflare v4 API"""
+
+            return self._base.call_with_apiauth('PATCH', self._parts,
+                                                       identifier1, identifier2, identifier3,
+                                                       params, data)
+
+        def post(self, identifier1=None, identifier2=None, identifier3=None, params=None, data=None, files=None):
+            """ Cloudflare v4 API"""
+
+            return self._base.call_with_apiauth('POST', self._parts,
+                                                       identifier1, identifier2, identifier3,
+                                                       params, data, files)
+
+        def put(self, identifier1=None, identifier2=None, identifier3=None, params=None, data=None):
+            """ Cloudflare v4 API"""
+
+            return self._base.call_with_apiauth('PUT', self._parts,
+                                                       identifier1, identifier2, identifier3,
+                                                       params, data)
+
+        def delete(self, identifier1=None, identifier2=None, identifier3=None, params=None, data=None):
+            """ Cloudflare v4 API"""
+
+            return self._base.call_with_apiauth('DELETE', self._parts,
+                                                       identifier1, identifier2, identifier3,
+                                                       params, data)
+
     def add(self, t, p1, p2=None, p3=None):
         """add api call to class"""
 
@@ -780,7 +860,10 @@ class CloudFlare(object):
         elif t == 'OPEN':
             f = self._add_noauth(self._base, p1, p2, p3)
         elif t == 'AUTH':
-            f = self._add_with_auth(self._base, p1, p2, p3)
+            if not (self._base.token and self._base.email) and self._base.apitoken:
+                f = self._add_with_apiauth(self._base, p1, p2, p3)
+            else:
+                f = self._add_with_auth(self._base, p1, p2, p3)
         elif t == 'CERT':
             f = self._add_with_cert_auth(self._base, p1, p2, p3)
         elif t == 'AUTH_UNWRAPPED':
@@ -814,13 +897,13 @@ class CloudFlare(object):
                 w = w + self.api_list(a, s + '/' + n)
         return w
 
-    def __init__(self, email=None, token=None, certtoken=None, debug=False, raw=False, use_sessions=True):
+    def __init__(self, email=None, token=None, certtoken=None, apitoken=None, debug=False, raw=False, use_sessions=True):
         """ Cloudflare v4 API"""
 
         base_url = BASE_URL
 
         # class creation values override configuration values
-        [conf_email, conf_token, conf_certtoken, extras] = read_configs()
+        [conf_email, conf_token, conf_certtoken, conf_apitoken, extras] = read_configs()
 
         if email is None:
             email = conf_email
@@ -828,8 +911,10 @@ class CloudFlare(object):
             token = conf_token
         if certtoken is None:
             certtoken = conf_certtoken
+        if apitoken is None:
+            token = conf_apitoken
 
-        self._base = self._v4base(email, token, certtoken, base_url, debug, raw, use_sessions)
+        self._base = self._v4base(email, token, certtoken, apitoken, base_url, debug, raw, use_sessions)
 
         # add the API calls
         api_v4(self)
